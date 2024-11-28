@@ -2,7 +2,10 @@ package br.edu.ifpb.gugawag.so.sockets;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.FileWriter;
+import java.io.BufferedWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -11,31 +14,112 @@ public class Servidor2 {
     public static void main(String[] args) throws IOException {
         System.out.println("== Servidor ==");
 
-        // Configurando o socket
         ServerSocket serverSocket = new ServerSocket(7001);
         Socket socket = serverSocket.accept();
 
-        // pegando uma referência do canal de saída do socket. Ao escrever nesse canal, está se enviando dados para o
-        // servidor
         DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
-        // pegando uma referência do canal de entrada do socket. Ao ler deste canal, está se recebendo os dados
-        // enviados pelo servidor
         DataInputStream dis = new DataInputStream(socket.getInputStream());
 
-        // laço infinito do servidor
         while (true) {
             System.out.println("Cliente: " + socket.getInetAddress());
 
             String mensagem = dis.readUTF();
-            System.out.println(mensagem);
+            System.out.println("Mensagem recebida: " + mensagem);
+            String[] partes = mensagem.split(" ", 3);
+            String comando = partes[0].toLowerCase();
 
-            dos.writeUTF("Li sua mensagem: " + mensagem);
+            switch (comando) {
+                case "readdir":
+                    listarArquivos(dos);
+                    break;
+                case "rename":
+                    if (partes.length == 3) {
+                        renomearArquivo(dos, partes[1], partes[2]);
+                    } else {
+                        dos.writeUTF("Comando inválido. Use: rename <arquivo_antigo> <novo_nome>");
+                    }
+                    break;
+                case "create":
+                    if (partes.length == 2) {
+                        criarArquivo(dos, partes[1]);
+                    } else {
+                        dos.writeUTF("Comando inválido. Use: create <nome_arquivo>");
+                    }
+                    break;
+                case "remove":
+                    if (partes.length == 2) {
+                        removerArquivo(dos, partes[1]);
+                    } else {
+                        dos.writeUTF("Comando inválido. Use: remove <nome_arquivo>");
+                    }
+                    break;
+                default:
+                    dos.writeUTF("Comando desconhecido: " + comando);
+                    break;
+            }
         }
-        /*
-         * Observe o while acima. Perceba que primeiro se lê a mensagem vinda do cliente (linha 29, depois se escreve
-         * (linha 32) no canal de saída do socket. Isso ocorre da forma inversa do que ocorre no while do Cliente2,
-         * pois, de outra forma, daria deadlock (se ambos quiserem ler da entrada ao mesmo tempo, por exemplo,
-         * ninguém evoluiria, já que todos estariam aguardando.
-         */
+    }
+
+    private static void listarArquivos(DataOutputStream dos) throws IOException {
+        File dir = new File("/home/ifpb/Documentos");
+        if (dir.exists() && dir.isDirectory()) {
+            String[] arquivos = dir.list();
+            if (arquivos != null && arquivos.length > 0) {
+                StringBuilder listaArquivos = new StringBuilder("Arquivos no diretório Documents:\n");
+                for (String arquivo : arquivos) {
+                    listaArquivos.append(arquivo).append("\n");
+                }
+                dos.writeUTF(listaArquivos.toString());
+            } else {
+                dos.writeUTF("Não há arquivos no diretório.");
+            }
+        } else {
+            dos.writeUTF("O diretório 'Documents' não existe ou não é um diretório válido.");
+        }
+    }
+
+    private static void renomearArquivo(DataOutputStream dos, String arquivoAntigo, String novoNome) throws IOException {
+        File arquivo = new File("/home/ifpb/Documentos/" + arquivoAntigo);
+        File novoArquivo = new File("/home/ifpb/Documentos/" + novoNome);
+
+        if (arquivo.exists()) {
+            if (arquivo.renameTo(novoArquivo)) {
+                dos.writeUTF("Arquivo renomeado com sucesso de " + arquivoAntigo + " para " + novoNome);
+            } else {
+                dos.writeUTF("Erro ao renomear o arquivo.");
+            }
+        } else {
+            dos.writeUTF("Arquivo não encontrado: " + arquivoAntigo);
+        }
+    }
+
+    private static void criarArquivo(DataOutputStream dos, String nomeArquivo) throws IOException {
+        File arquivo = new File("/home/ifpb/Documentos/" + nomeArquivo);
+
+        if (arquivo.exists()) {
+            dos.writeUTF("Arquivo já existe: " + nomeArquivo);
+        } else {
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(arquivo))) {
+                writer.write("");  // Cria um arquivo vazio
+                dos.writeUTF("Arquivo criado com sucesso: " + nomeArquivo);
+            } catch (IOException e) {
+                dos.writeUTF("Erro ao criar o arquivo: " + nomeArquivo);
+            }
+        }
+    }
+
+
+    private static void removerArquivo(DataOutputStream dos, String nomeArquivo) throws IOException {
+        File arquivo = new File("/home/ifpb/Documentos/" + nomeArquivo);
+
+        if (arquivo.exists()) {
+            if (arquivo.delete()) {
+                dos.writeUTF("Arquivo removido com sucesso: " + nomeArquivo);
+            } else {
+                dos.writeUTF("Erro ao remover o arquivo.");
+            }
+        } else {
+            dos.writeUTF("Arquivo não encontrado: " + nomeArquivo);
+        }
     }
 }
