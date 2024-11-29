@@ -1,13 +1,9 @@
 package br.edu.ifpb.gugawag.so.sockets;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.FileWriter;
-import java.io.BufferedWriter;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Date;
 
 public class Servidor2 {
 
@@ -15,49 +11,72 @@ public class Servidor2 {
         System.out.println("== Servidor ==");
 
         ServerSocket serverSocket = new ServerSocket(7001);
-        Socket socket = serverSocket.accept();
 
-        DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
-        DataInputStream dis = new DataInputStream(socket.getInputStream());
 
-        while (true) {
-            System.out.println("Cliente: " + socket.getInetAddress());
+//        while (true) {
+        Socket clientSocket = serverSocket.accept();
+        new ClientHandler(clientSocket).start();
+//        }
+    }
+}
 
-            String mensagem = dis.readUTF();
-            System.out.println("Mensagem recebida: " + mensagem);
-            String[] partes = mensagem.split(" ", 3);
-            String comando = partes[0].toLowerCase();
+class ClientHandler extends Thread {
+    private Socket socket;
 
-            switch (comando) {
-                case "readdir":
-                    listarArquivos(dos);
-                    break;
-                case "rename":
-                    if (partes.length == 3) {
-                        renomearArquivo(dos, partes[1], partes[2]);
-                    } else {
-                        dos.writeUTF("Comando inválido. Use: rename <arquivo_antigo> <novo_nome>");
-                    }
-                    break;
-                case "create":
-                    if (partes.length == 2) {
-                        criarArquivo(dos, partes[1]);
-                    } else {
-                        dos.writeUTF("Comando inválido. Use: create <nome_arquivo>");
-                    }
-                    break;
-                case "remove":
-                    if (partes.length == 2) {
-                        removerArquivo(dos, partes[1]);
-                    } else {
-                        dos.writeUTF("Comando inválido. Use: remove <nome_arquivo>");
-                    }
-                    break;
-                default:
-                    dos.writeUTF("Comando desconhecido: " + comando);
-                    break;
+    DataOutputStream dos;
+    DataInputStream dis;
+
+    public ClientHandler(Socket socket) throws IOException {
+        this.socket = socket;
+        dos = new DataOutputStream(socket.getOutputStream());
+        dis = new DataInputStream(socket.getInputStream());
+    }
+
+    @Override
+    public void run() {
+//        while(true) {
+            try {
+                System.out.println("Cliente: " + socket.getInetAddress());
+
+
+                String mensagem = dis.readUTF();
+                System.out.println("Mensagem recebida: " + mensagem);
+                String[] partes = mensagem.split(" ", 3);
+                String comando = partes[0].toLowerCase();
+
+                switch (comando) {
+                    case "readdir":
+                        listarArquivos(dos);
+                        break;
+                    case "rename":
+                        if (partes.length == 3) {
+                            renomearArquivo(dos, partes[1], partes[2]);
+                        } else {
+                            dos.writeUTF("Comando inválido. Use: rename <arquivo_antigo> <novo_nome>");
+                        }
+                        break;
+                    case "create":
+                        if (partes.length == 2) {
+                            criarArquivo(dos, partes[1]);
+                        } else {
+                            dos.writeUTF("Comando inválido. Use: create <nome_arquivo>");
+                        }
+                        break;
+                    case "remove":
+                        if (partes.length == 2) {
+                            removerArquivo(dos, partes[1]);
+                        } else {
+                            dos.writeUTF("Comando inválido. Use: remove <nome_arquivo>");
+                        }
+                        break;
+                    default:
+                        dos.writeUTF("Comando desconhecido: " + comando);
+                        break;
+                }
+            } catch (IOException e) {
+                System.err.println("Erro ao comunicar com o cliente: " + e);
             }
-        }
+//        }
     }
 
     private static void listarArquivos(DataOutputStream dos) throws IOException {
@@ -100,7 +119,7 @@ public class Servidor2 {
             dos.writeUTF("Arquivo já existe: " + nomeArquivo);
         } else {
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(arquivo))) {
-                writer.write("");  // Cria um arquivo vazio
+                writer.write("");
                 dos.writeUTF("Arquivo criado com sucesso: " + nomeArquivo);
             } catch (IOException e) {
                 dos.writeUTF("Erro ao criar o arquivo: " + nomeArquivo);
